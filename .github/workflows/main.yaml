@@ -7,7 +7,7 @@ on:
   pull_request:
     branches: ["*"]
   release:
-    types: [created]
+    types: [created, edited, published, prereleased]
 
 jobs:
   build:
@@ -75,99 +75,25 @@ jobs:
 
   publish-release:
     needs: [build, build-android]
-    runs-on: ubuntu-22.04
-    steps:
-      - name: Download normal DLL
-        uses: actions/download-artifact@v4
-        with:
-          name: MiraAPI.dll
-          path: dist
-
-      - name: Download Android DLL
-        uses: actions/download-artifact@v4
-        with:
-          name: MiraAPI-Android.dll
-          path: dist
-
-      - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          draft: false
-          files: |
-            dist/MiraAPI.dll
-            dist/MiraAPI-Android.dll      - name: Build (Cake)
-        uses: cake-build/cake-action@v2
-        with:
-          verbosity: Diagnostic
-
-      - name: Collect PC DLL
-        run: |
-          file=$(find MiraAPI/bin/Release -name "MiraAPI.dll" | head -n 1)
-          echo "PC dll: $file"
-          cp "$file" MiraAPI-PC.dll
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: MiraAPI-PC
-          path: MiraAPI-PC.dll
-
-  build-android:
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: android
-          submodules: true
-
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ~/.nuget/packages
-            ~/.cache/bepinex
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 8.0.x
-
-      - name: Build (Cake)
-        uses: cake-build/cake-action@v2
-        with:
-          verbosity: Diagnostic
-
-      - name: Collect Android DLL
-        run: |
-          file=$(find MiraAPI/bin/Release -name "MiraAPI.dll" | head -n 1)
-          echo "Android dll: $file"
-          cp "$file" MiraAPI-Android.dll
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: MiraAPI-Android
-          path: MiraAPI-Android.dll
-
-  publish-release:
-    runs-on: ubuntu-22.04
-    needs: [build-pc, build-android]
     if: github.event_name == 'release'
+    runs-on: ubuntu-22.04
     steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: MiraAPI-PC
-          path: release-assets
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: MiraAPI-Android
-          path: release-assets
-
-      - name: Publish to GitHub Release
+      - name: Upload release assets
         uses: softprops/action-gh-release@v2
         with:
-          draft: false
           files: |
-            release-assets/MiraAPI-PC.dll
-            release-assets/MiraAPI-Android.dll
+            MiraAPI/bin/Release/net6.0/MiraAPI.dll
+            MiraAPI/bin/Release/net6.0/MiraAPI.dll
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish draft release
+        if: github.event.action == 'created'
+        run: |
+          gh release edit ${{ github.event.release.tag_name }} --draft=false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Handle prerelease (keep as prerelease)
+        if: github.event.action == 'prereleased'
+        run: echo "Release is prerelease, DLLs uploaded but status unchanged"
