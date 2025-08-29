@@ -1,8 +1,5 @@
 name: CI
 
-permissions:
-  contents: write
-
 on:
   workflow_dispatch:
   push:
@@ -13,7 +10,7 @@ on:
     types: [created]
 
 jobs:
-  build-pc:
+  build:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -34,7 +31,71 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
-      - name: Build (Cake)
+      - name: Run the Cake script
+        uses: cake-build/cake-action@v2
+        with:
+          verbosity: Diagnostic
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MiraAPI.dll
+          path: MiraAPI/bin/Release/net6.0/MiraAPI.dll
+
+  build-android:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: android
+          submodules: true
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.nuget/packages
+            ~/.cache/bepinex
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Run the Cake script
+        uses: cake-build/cake-action@v2
+        with:
+          verbosity: Diagnostic
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MiraAPI-Android.dll
+          path: MiraAPI/bin/Release/net6.0/MiraAPI.dll
+
+  publish-release:
+    needs: [build, build-android]
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Download normal DLL
+        uses: actions/download-artifact@v4
+        with:
+          name: MiraAPI.dll
+          path: dist
+
+      - name: Download Android DLL
+        uses: actions/download-artifact@v4
+        with:
+          name: MiraAPI-Android.dll
+          path: dist
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          files: |
+            dist/MiraAPI.dll
+            dist/MiraAPI-Android.dll      - name: Build (Cake)
         uses: cake-build/cake-action@v2
         with:
           verbosity: Diagnostic
