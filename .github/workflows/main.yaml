@@ -1,6 +1,7 @@
 name: Build
 
 on:
+  workflow_dispatch:
   push:
     branches: ["*"]
   pull_request:
@@ -35,6 +36,32 @@ jobs:
           name: MiraAPI
           path: |
             **/bin/Release/**/*.dll
+
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout android branch
+        uses: actions/checkout@v4
+        with:
+          ref: android
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --configuration Release --no-restore
+
+      - name: Upload Android DLL
+        uses: actions/upload-artifact@v4
+        with:
+          name: MiraAPI-Android
+          path: |
+            **/bin/Release/**/*.dll            **/bin/Release/**/*.dll
 
   build-android:
     runs-on: ubuntu-latest
