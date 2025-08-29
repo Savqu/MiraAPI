@@ -1,5 +1,8 @@
 name: CI
 
+permissions:
+  contents: write
+
 on:
   workflow_dispatch:
   push:
@@ -31,10 +34,82 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
-      - name: Run the Cake script
+      - name: Build (Cake)
         uses: cake-build/cake-action@v2
         with:
           verbosity: Diagnostic
+
+      - name: Collect PC DLL
+        run: |
+          file=$(find MiraAPI/bin/Release -name "MiraAPI.dll" | head -n 1)
+          echo "PC dll: $file"
+          cp "$file" MiraAPI-PC.dll
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MiraAPI-PC
+          path: MiraAPI-PC.dll
+
+  build-android:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: android
+          submodules: true
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.nuget/packages
+            ~/.cache/bepinex
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Build (Cake)
+        uses: cake-build/cake-action@v2
+        with:
+          verbosity: Diagnostic
+
+      - name: Collect Android DLL
+        run: |
+          file=$(find MiraAPI/bin/Release -name "MiraAPI.dll" | head -n 1)
+          echo "Android dll: $file"
+          cp "$file" MiraAPI-Android.dll
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MiraAPI-Android
+          path: MiraAPI-Android.dll
+
+  publish-release:
+    runs-on: ubuntu-22.04
+    needs: [build-pc, build-android]
+    if: github.event_name == 'release'
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: MiraAPI-PC
+          path: release-assets
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: MiraAPI-Android
+          path: release-assets
+
+      - name: Publish to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          files: |
+            release-assets/MiraAPI-PC.dll
+            release-assets/MiraAPI-Android.dll          verbosity: Diagnostic
 
       - name: Copy PC DLL
         run: cp MiraAPI/bin/Release/net6.0/MiraAPI.dll MiraAPI-PC.dll
