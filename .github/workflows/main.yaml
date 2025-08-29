@@ -1,115 +1,98 @@
-name: Build
+name: CI
 
 on:
   workflow_dispatch:
   push:
-    branches: ["*"]
   pull_request:
-    branches: ["*"]
   release:
     types: [published]
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  build-pc:
+    runs-on: ubuntu-22.04
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.nuget/packages
+            ~/.cache/bepinex
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
 
-      - name: Restore dependencies
-        run: dotnet restore
-
-      - name: Build
-        run: dotnet build --configuration Release --no-restore
-
-      - name: Test
-        run: dotnet test --no-build --verbosity normal
-
-      - name: Upload DLL
-        uses: actions/upload-artifact@v4
+      - name: Run the Cake script
+        uses: cake-build/cake-action@v2
         with:
-          name: MiraAPI
-          path: |
-            **/bin/Release/**/*.dll
+          verbosity: Diagnostic
+
+      - name: Rename DLL for PC
+        run: mv MiraAPI/bin/Release/net6.0/MiraAPI.dll MiraAPI.dll
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MiraAPI.dll
+          path: MiraAPI.dll
 
   build-android:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
-      - name: Checkout android branch
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           ref: android
+          submodules: true
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.nuget/packages
+            ~/.cache/bepinex
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
 
-      - name: Restore dependencies
-        run: dotnet restore
-
-      - name: Build
-        run: dotnet build --configuration Release --no-restore
-
-      - name: Upload Android DLL
-        uses: actions/upload-artifact@v4
+      - name: Run the Cake script
+        uses: cake-build/cake-action@v2
         with:
-          name: MiraAPI-Android
-          path: |
-            **/bin/Release/**/*.dll            **/bin/Release/**/*.dll
+          verbosity: Diagnostic
 
-  build-android:
-    runs-on: ubuntu-latest
+      - name: Rename DLL for Android
+        run: mv MiraAPI/bin/Release/net6.0/MiraAPI.dll MiraAPI-Android.dll
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MiraAPI-Android.dll
+          path: MiraAPI-Android.dll
+
+  release:
+    runs-on: ubuntu-22.04
+    needs: [build-pc, build-android]
+    if: github.event_name == 'release'
     steps:
-      - name: Checkout android branch
-        uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
         with:
-          ref: android
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+          name: MiraAPI.dll
+      - uses: actions/download-artifact@v4
         with:
-          dotnet-version: 8.0.x
+          name: MiraAPI-Android.dll
 
-      - name: Restore dependencies
-        run: dotnet restore
-
-      - name: Build
-        run: dotnet build --configuration Release --no-restore
-
-      - name: Upload Android DLL
-        uses: actions/upload-artifact@v4
-        with:
-          name: MiraAPI-Android
-          path: |
-            **/bin/Release/**/*.dll      - name: Build Android
-        run: dotnet build --configuration Release --no-restore
-
-      - name: Upload Android DLL to Release
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: src/MiraAPI/bin/Release/netstandard2.1/MiraApi.dll
-          asset_name: MiraApi-Android.dll
-          asset_content_type: application/octet-stream      - uses: actions/upload-artifact@v4
-        with:
-          name: AllOfUs.MiraAPI.nupkg
-          path: MiraAPI/bin/Release/AllOfUs.MiraAPI.*.nupkg
-          
-      - uses: softprops/action-gh-release@v2
-        if: github.ref_type == 'tag'
+      - name: Upload Release Assets
+        uses: softprops/action-gh-release@v2
         with:
           draft: true
-          files: MiraAPI/bin/Release/net6.0/MiraAPI.dll
-          
-      - name: Push NuGet package
-        if: github.ref_type == 'tag'
-        run: |
-          dotnet nuget push MiraAPI/bin/Release/AllOfUs.MiraAPI.*.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{ secrets.NUGET_API_KEY }}
+          files: |
+            MiraAPI.dll
+            MiraAPI-Android.dll
