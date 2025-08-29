@@ -42,6 +42,66 @@ jobs:
           name: MiraAPI.dll
           path: MiraAPI.dll
 
+  build-android:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: android
+          submodules: true
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.nuget/packages
+            ~/.cache/bepinex
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Run the Cake script
+        uses: cake-build/cake-action@v2
+        with:
+          verbosity: Diagnostic
+
+      - name: Rename DLL for Android
+        run: mv MiraAPI/bin/Release/net6.0/MiraAPI.dll MiraAPI-Android.dll
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MiraAPI-Android.dll
+          path: MiraAPI-Android.dll
+
+  release:
+    runs-on: ubuntu-22.04
+    needs: [build-pc, build-android]
+    if: github.event_name == 'release'
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: MiraAPI.dll
+      - uses: actions/download-artifact@v4
+        with:
+          name: MiraAPI-Android.dll
+
+      - name: Upload Release Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            MiraAPI.dll
+            MiraAPI-Android.dll      - name: Rename DLL for PC
+        run: mv MiraAPI/bin/Release/net6.0/MiraAPI.dll MiraAPI.dll
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MiraAPI.dll
+          path: MiraAPI.dll
+
 build-android:
     runs-on: ubuntu-22.04
     steps:
