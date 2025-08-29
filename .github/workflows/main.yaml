@@ -7,7 +7,7 @@ on:
   pull_request:
     branches: ["*"]
   release:
-    types: [created]
+    types: [created, edited, published, prereleased]
 
 jobs:
   build:
@@ -75,24 +75,25 @@ jobs:
 
   publish-release:
     needs: [build, build-android]
+    if: github.event_name == 'release'
     runs-on: ubuntu-22.04
     steps:
-      - name: Download normal DLL
-        uses: actions/download-artifact@v4
-        with:
-          name: MiraAPI.dll
-          path: dist
-
-      - name: Download Android DLL
-        uses: actions/download-artifact@v4
-        with:
-          name: MiraAPI-Android.dll
-          path: dist
-
-      - name: Publish GitHub Release
+      - name: Upload release assets
         uses: softprops/action-gh-release@v2
         with:
-          draft: false
           files: |
-            dist/MiraAPI.dll
-            dist/MiraAPI-Android.dll
+            MiraAPI/bin/Release/net6.0/MiraAPI.dll
+            MiraAPI/bin/Release/net6.0/MiraAPI.dll
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish draft release
+        if: github.event.action == 'created'
+        run: |
+          gh release edit ${{ github.event.release.tag_name }} --draft=false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Handle prerelease (keep as prerelease)
+        if: github.event.action == 'prereleased'
+        run: echo "Release is prerelease, DLLs uploaded but status unchanged"
