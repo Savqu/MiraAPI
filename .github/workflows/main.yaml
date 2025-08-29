@@ -1,19 +1,19 @@
-name: build
+name: Build
 
 on:
-  workflow_dispatch:
+  push:
+    branches: ["*"]
+  pull_request:
+    branches: ["*"]
   release:
     types: [published]
-  push:
-    branches:
-      - "**"
-  pull_request:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -26,20 +26,21 @@ jobs:
       - name: Build
         run: dotnet build --configuration Release --no-restore
 
-      - name: Upload PC DLL to Release
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Test
+        run: dotnet test --no-build --verbosity normal
+
+      - name: Upload DLL
+        uses: actions/upload-artifact@v4
         with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: src/MiraAPI/bin/Release/netstandard2.1/MiraApi.dll
-          asset_name: MiraApi-PC.dll
-          asset_content_type: application/octet-stream
+          name: MiraAPI
+          path: |
+            **/bin/Release/**/*.dll
 
   build-android:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout android branch
+        uses: actions/checkout@v4
         with:
           ref: android
 
@@ -51,35 +52,15 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore
 
-      - name: Build Android
+      - name: Build
         run: dotnet build --configuration Release --no-restore
 
-      - name: Upload Android DLL to Release
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload Android DLL
+        uses: actions/upload-artifact@v4
         with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: src/MiraAPI/bin/Release/netstandard2.1/MiraApi.dll
-          asset_name: MiraApi-Android.dll
-          asset_content_type: application/octet-stream          asset_content_type: application/octet-stream
-
-  build-android:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: android
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 8.0.x
-
-      - name: Restore dependencies
-        run: dotnet restore
-
-      - name: Build Android
+          name: MiraAPI-Android
+          path: |
+            **/bin/Release/**/*.dll      - name: Build Android
         run: dotnet build --configuration Release --no-restore
 
       - name: Upload Android DLL to Release
