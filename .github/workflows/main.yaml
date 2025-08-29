@@ -5,10 +5,10 @@ on:
   push:
   pull_request:
   release:
-    types: [published]
+    types: [created]
 
 jobs:
-  build-pc:
+  build:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -34,7 +34,28 @@ jobs:
         with:
           verbosity: Diagnostic
 
-      - name: Rename DLL for PC
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MiraAPI.dll
+          path: MiraAPI/bin/Release/net6.0/MiraAPI.dll
+
+      - name: Find & Rename DLL for Android
+        run: |
+          file=$(find MiraAPI/bin/Release -name "MiraAPI.dll" | head -n 1)
+          echo "Found: $file"
+          cp "$file" MiraAPI-Android.dll
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MiraAPI-Android.dll
+          path: MiraAPI-Android.dll
+          
+      - uses: softprops/action-gh-release@v2
+        if: github.event_name == 'release'
+        with:
+          files: |
+            MiraAPI/bin/Release/net6.0/MiraAPI.dll
+            MiraAPI-Android.dll      - name: Rename DLL for PC
         run: mv MiraAPI/bin/Release/net6.0/MiraAPI.dll MiraAPI.dll
 
       - uses: actions/upload-artifact@v4
