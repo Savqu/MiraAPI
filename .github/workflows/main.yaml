@@ -42,10 +42,40 @@ jobs:
           name: MiraAPI.dll
           path: MiraAPI.dll
 
-  build-android:
+build-android:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
         with:
           ref: android
           submodules: true
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.nuget/packages
+            ~/.cache/bepinex
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Run the Cake script
+        uses: cake-build/cake-action@v2
+        with:
+          verbosity: Diagnostic
+
+      - name: Find & Rename DLL for Android
+        run: |
+          file=$(find MiraAPI/bin/Release -name "MiraAPI.dll" | head -n 1)
+          echo "Found: $file"
+          cp "$file" MiraAPI-Android.dll
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MiraAPI-Android.dll
+          path: MiraAPI-Android.dll
